@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nutrition-tracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nutrition_user
+      POSTGRES_PASSWORD: nutrition_password
+      POSTGRES_DB: nutrition_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutrition_user -d nutrition_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  api:
+    build: backend/
+    container_name: nutrition-tracker-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nutrition_tracker
+      SPRING_DATASOURCE_USERNAME: nutrition_user
+      SPRING_DATASOURCE_PASSWORD: nutrition_password
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      APP_SEED_ON_STARTUP: "true"
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

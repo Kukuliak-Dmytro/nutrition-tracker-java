@@ -1,0 +1,24 @@
+{
+    "name": "nutrition-tracker-java",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Nutrition Tracker – Next.js frontend + Spring Boot Java backend",
+    "scripts": {
+        "setup:db": "docker compose up -d postgres && echo 'Waiting for DB...' && sleep 3 && docker exec nutrition-tracker-db pg_isready -U nutrition_user -d nutrition_tracker",
+        "db:start": "docker compose up -d postgres",
+        "db:stop": "docker compose down",
+        "db:restart": "npm run db:stop && npm run db:start",
+        "backend:dev": "docker compose up -d api",
+        "backend:build": "docker compose build api",
+        "backend:test": "cd backend && ./mvnw test",
+        "frontend:install": "cd frontend && npm install",
+        "frontend:dev": "cd frontend && BACKEND_API_URL=http://127.0.0.1:8080/api npm run dev",
+        "frontend:build": "cd frontend && npm run build",
+        "dev": "npm run setup:db && concurrently --names 'backend,frontend' --prefix-colors 'blue,green' 'npm run backend:dev' 'npm run frontend:dev'",
+        "install:all": "npm run frontend:install",
+        "start": "./scripts/start.sh"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.0"
+    }
+}
