@@ -73,8 +73,8 @@ export const RecipeIngredientResponseSchema = z.object({
 
 export const RecipeResponseSchema = RecipeSchema.extend({
   id: z.string(),
-  createdAt: z.string().transform((str) => new Date(str)),
-  updatedAt: z.string().transform((str) => new Date(str)),
+  createdAt: z.string().transform((str) => new Date(str)).optional().nullable(),
+  updatedAt: z.string().transform((str) => new Date(str)).optional().nullable(),
   ingredients: z.array(RecipeIngredientResponseSchema).optional(),
 });
 

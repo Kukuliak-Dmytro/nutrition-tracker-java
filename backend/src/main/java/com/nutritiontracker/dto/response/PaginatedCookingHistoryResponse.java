@@ -6,6 +6,6 @@ public record PaginatedCookingHistoryResponse(
     List<CookingHistoryResponse> data,
     String nextCursor,
     boolean hasMore,
-    long totalCooks,
+    long totalCount,
     List<CookingHistoryResponse> recentCookingHistory
 ) {}

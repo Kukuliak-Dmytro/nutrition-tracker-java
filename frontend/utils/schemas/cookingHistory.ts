@@ -21,7 +21,7 @@ export const CookingHistorySchema = z.object({
    id: z.string(),
    recipeId: z.string(),
    cookedAt: z.string().transform((str) => new Date(str)),
-   createdAt: z.string().transform((str) => new Date(str)).optional(),
+   createdAt: z.string().transform((str) => new Date(str)).optional().nullable(),
 });
 
 export const CookingHistoryResponseSchema = CookingHistorySchema.extend({
@@ -70,7 +70,7 @@ export const CookingHistoryQuerySchema = z
 
 export const PaginatedCookingHistoryResponseSchema = z.object({
    data: z.array(CookingHistoryResponseSchema),
-   nextCursor: z.string().nullable(),
+   nextCursor: z.string().nullable().optional(),
    hasMore: z.boolean(),
    totalCooks: z.number(),
    recentCookingHistory: z.array(CookingHistoryResponseSchema)

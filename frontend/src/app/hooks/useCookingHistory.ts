@@ -17,20 +17,17 @@ import { CookingHistoryQuery } from "../../../utils/schemas";
 import { toast } from "sonner";
 
 export const cookingHistoryQueryOptions = (
-   filters: Partial<CookingHistoryQuery> = {}
+   filters: Partial<CookingHistoryQuery & { page?: number }> = {}
 ) => {
-   return infiniteQueryOptions({
-      queryKey: ["cooking-history", filters],
-      queryFn: ({ pageParam }) =>
+   const { page = 0, ...restFilters } = filters;
+   return queryOptions({
+      queryKey: ["cooking-history", { page, ...restFilters }],
+      queryFn: () =>
          getCookingHistory({
-            cursor: pageParam as string | undefined,
+            page: page,
             limit: 10,
-            ...filters,
+            ...restFilters,
          }),
-      initialPageParam: undefined as string | undefined,
-      getNextPageParam: (lastPage) => {
-         return lastPage.nextCursor ?? undefined;
-      },
       staleTime: 60 * 1000,
    });
 };
@@ -44,9 +41,9 @@ export const recentCookingHistoryQueryOptions = () => {
 };
 
 export const useCookingHistory = (
-   filters: Partial<CookingHistoryQuery> = {}
+   filters: Partial<CookingHistoryQuery & { page?: number }> = {}
 ) => {
-   return useInfiniteQuery(cookingHistoryQueryOptions(filters));
+   return useQuery(cookingHistoryQueryOptions(filters));
 };
 
 export const useRecentCookingHistory = () => {

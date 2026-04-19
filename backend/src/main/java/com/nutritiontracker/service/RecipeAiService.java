@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nutritiontracker.dto.request.GenerateRecipeRequest;
 import com.nutritiontracker.dto.response.GenerateRecipeResponse;
+import com.nutritiontracker.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,7 +39,7 @@ public class RecipeAiService {
 
     public GenerateRecipeResponse generateRecipe(GenerateRecipeRequest request) {
         if (!hasApiKey()) {
-            throw new IllegalStateException("Missing Gemini API key");
+            throw new BusinessException("Missing Gemini API key. Please check your .env file.");
         }
 
         String ingredientsText = request.ingredients().stream()
@@ -87,29 +88,53 @@ public class RecipeAiService {
             JsonNode root = objectMapper.readTree(response);
             String text = root.at("/candidates/0/content/parts/0/text").asText().trim();
 
-            // Extract JSON from response
-            JsonNode parsed = objectMapper.readTree(text);
-            String description = parsed.get("description").asText();
+            if (text.isEmpty()) {
+                log.error("Empty response from Gemini. Full response: {}", response);
+                throw new BusinessException("AI generated an empty recipe. Please try again.");
+            }
+
+            // Extract JSON from response (handle potential markdown blocks)
+            if (text.startsWith("```json")) {
+                text = text.substring(7, text.length() - 3).trim();
+            } else if (text.startsWith("```")) {
+                text = text.substring(3, text.length() - 3).trim();
+            }
+
+            JsonNode parsed;
+            try {
+                parsed = objectMapper.readTree(text);
+            } catch (Exception e) {
+                log.error("Failed to parse AI response text as JSON: {}. Original text: {}", e.getMessage(), text);
+                throw new BusinessException("AI returned invalid data format. Please try again.");
+            }
+
+            String description = parsed.has("description") ? parsed.get("description").asText() : "No description provided.";
 
             // Handle instructions: may be array or string
             String instructions;
-            JsonNode instructionsNode = parsed.get("instructions");
-            if (instructionsNode.isArray()) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < instructionsNode.size(); i++) {
-                    if (i > 0) sb.append("\n");
-                    sb.append(instructionsNode.get(i).asText());
+            if (parsed.has("instructions")) {
+                JsonNode instructionsNode = parsed.get("instructions");
+                if (instructionsNode.isArray()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < instructionsNode.size(); i++) {
+                        if (i > 0) sb.append("\n");
+                        sb.append(instructionsNode.get(i).asText());
+                    }
+                    instructions = sb.toString();
+                } else {
+                    instructions = instructionsNode.asText();
                 }
-                instructions = sb.toString();
             } else {
-                instructions = instructionsNode.asText();
+                instructions = "No instructions provided.";
             }
 
             return new GenerateRecipeResponse(description, instructions);
 
+        } catch (BusinessException e) {
+            throw e; // Rethrow our custom messages
         } catch (Exception e) {
             log.error("Failed to generate recipe: ", e);
-            throw new RuntimeException("Failed to generate recipe. Please try again.", e);
+            throw new BusinessException("Failed to generate recipe due to technical error. Please try again later.", e);
         }
     }
 }

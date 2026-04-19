@@ -12,16 +12,20 @@ import com.nutritiontracker.repository.CookingHistoryRepository;
 import com.nutritiontracker.repository.RecipeRepository;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,42 +51,25 @@ public class CookingHistoryService {
         // Count total
         long totalCooks = repository.count(spec);
 
-        // Build sort
+        // Build sort (including ID for deterministic results)
         Sort sort;
         if (params.sortBy() != null) {
-            sort = Sort.by("asc".equals(sortOrder) ? Sort.Direction.ASC : Sort.Direction.DESC, params.sortBy());
+            sort = Sort.by("asc".equals(sortOrder) ? Sort.Direction.ASC : Sort.Direction.DESC, params.sortBy(), "id");
         } else {
-            sort = Sort.by(Sort.Direction.DESC, "cookedAt");
+            sort = Sort.by(Sort.Direction.DESC, "cookedAt", "id");
         }
-
-        // Fetch all matching, then apply cursor pagination
-        List<CookingHistory> allMatching = repository.findAll(spec, sort);
 
         // Get recipe cook counts
         Map<UUID, Long> recipeCounts = getRecipeCookCounts();
 
-        // Apply cursor pagination
-        List<CookingHistory> results;
-        if (params.cursor() != null && !params.cursor().isBlank()) {
-            UUID cursorId = UUID.fromString(params.cursor());
-            int cursorIndex = -1;
-            for (int i = 0; i < allMatching.size(); i++) {
-                if (allMatching.get(i).getId().equals(cursorId)) {
-                    cursorIndex = i;
-                    break;
-                }
-            }
-            results = cursorIndex >= 0
-                ? allMatching.subList(Math.min(cursorIndex + 1, allMatching.size()),
-                                      Math.min(cursorIndex + 1 + limit + 1, allMatching.size()))
-                : allMatching.subList(0, Math.min(limit + 1, allMatching.size()));
-        } else {
-            results = allMatching.subList(0, Math.min(limit + 1, allMatching.size()));
-        }
+        // Use standard offset-based pagination
+        int page = params.page() != null ? params.page() : 0;
+        Pageable pageable = PageRequest.of(page, limit, sort);
+        Page<CookingHistory> resultsPage = repository.findAll(spec, pageable);
 
-        boolean hasMore = results.size() > limit;
-        List<CookingHistory> data = hasMore ? results.subList(0, limit) : results;
-        String nextCursor = hasMore && !data.isEmpty() ? data.get(data.size() - 1).getId().toString() : null;
+        List<CookingHistory> data = resultsPage.getContent();
+        boolean hasMore = resultsPage.hasNext();
+        long totalCooksFromCount = resultsPage.getTotalElements();
 
         // Map with timesCooked
         List<CookingHistoryResponse> responseData = data.stream()
@@ -102,7 +89,7 @@ public class CookingHistoryService {
                 .toList();
         }
 
-        return new PaginatedCookingHistoryResponse(responseData, nextCursor, hasMore, totalCooks, recentHistory);
+        return new PaginatedCookingHistoryResponse(responseData, null, hasMore, totalCooksFromCount, recentHistory);
     }
 
     @Transactional
@@ -139,10 +126,11 @@ public class CookingHistoryService {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Fetch recipe with ingredients eagerly
-            if (query != null && Long.class != query.getResultType()) {
-                var recipeJoin = root.fetch("recipe", JoinType.LEFT);
-                recipeJoin.fetch("ingredients", JoinType.LEFT).fetch("ingredient", JoinType.LEFT);
+            // Fetch recipe with ingredients eagerly only for the actual data query
+            if (query != null && query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("recipe", JoinType.LEFT)
+                    .fetch("ingredients", JoinType.LEFT)
+                    .fetch("ingredient", JoinType.LEFT);
                 query.distinct(true);
             }
 

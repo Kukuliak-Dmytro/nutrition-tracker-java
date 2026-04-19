@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record CookingHistoryQueryParams(
     String cursor,
     Integer limit,
+    Integer page,
     String search,
     LocalDateTime startDate,
     LocalDateTime endDate,

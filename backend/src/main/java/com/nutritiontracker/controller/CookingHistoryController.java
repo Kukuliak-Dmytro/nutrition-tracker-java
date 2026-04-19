@@ -36,6 +36,7 @@ public class CookingHistoryController {
     public ResponseEntity<PaginatedCookingHistoryResponse> getCookingHistory(
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer page,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) LocalDateTime startDate,
             @RequestParam(required = false) LocalDateTime endDate,
@@ -43,7 +44,7 @@ public class CookingHistoryController {
             @RequestParam(required = false) String sortOrder) {
 
         CookingHistoryQueryParams params = new CookingHistoryQueryParams(
-            cursor, limit, search, startDate, endDate, sortBy, sortOrder
+            cursor, limit, page, search, startDate, endDate, sortBy, sortOrder
         );
         return ResponseEntity.ok(cookingHistoryService.getCookingHistory(params));
     }
